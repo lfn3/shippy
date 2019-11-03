@@ -25,7 +25,7 @@ fn main() -> Result<(), CliError<'static>> {
     let cfg: Config = serde_yaml::from_reader(cfg_file)
         .map_err(|e| CliError::Yaml("Could not deserialize config file", e))?;
 
-    let proj = Project::new(cfg.project_id, cfg.api_token.get()?);
+    let proj = Project::new(cfg.base_url, cfg.project_id, cfg.api_token.get()?);
 
     let repo = &Repository::open(cwd).map_err(|e| CliError::Git("Could not open repository", e))?;
 

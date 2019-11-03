@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 
 pub struct Project {
+    base_url: String,
     project_id: u64,
     api_token: String,
     client: reqwest::Client,
@@ -35,8 +36,9 @@ pub struct User {
 }
 
 impl Project {
-    pub fn new(project_id: u64, api_token: String) -> Project {
+    pub fn new(base_url: String, project_id: u64, api_token: String) -> Project {
         Project {
+            base_url,
             project_id,
             api_token,
             client: Client::new(),
@@ -45,17 +47,35 @@ impl Project {
 
     pub fn get_mr(&self, mr_id: u64) -> Result<MergeRequest, CliError<'static>> {
         let url = format!(
-            "https://gitlab.com/api/v4/projects/{project_id}/merge_requests/{mr_id}",
+            "{base_url}/api/v4/projects/{project_id}/merge_requests/{mr_id}",
+            base_url = self.base_url,
             project_id = self.project_id,
             mr_id = mr_id
         );
-
-        reqwest::get(url.as_str())
-            .and_then(|mut resp| resp.json::<MergeRequest>())
+        let req = self
+            .client
+            .get(url.as_str())
+            .header("Private-Token", self.api_token.clone())
+            .build()
             .map_err(|e| {
-                let message = format!("Error getting merge request with id {}", mr_id);
+                let message = format!(
+                    "Could not build request for merge request with id {}",
+                    mr_id
+                );
                 CliError::Http(message, e)
-            })
+            })?;
+
+        let mut response = self.client.execute(req).map_err(|e| {
+            CliError::Http(format!("Error getting merge request with id {}", mr_id), e)
+        })?;
+
+        response.json::<MergeRequest>().map_err(|e| {
+            let message = format!(
+                "Could not deserialize json for merge request with id {} from:\n {:#?}",
+                mr_id, response
+            );
+            CliError::Http(message, e)
+        })
     }
 }
 
@@ -65,7 +85,11 @@ mod gitlab_api_tests {
     use std::env;
 
     lazy_static! {
-        static ref PROJECT: Project = Project::new(15148894, env::var("GITLAB_API_TOKEN").unwrap());
+        static ref PROJECT: Project = Project::new(
+            "http://gitlab.com".to_string(),
+            15148894,
+            env::var("GITLAB_API_TOKEN").unwrap()
+        );
     }
 
     #[test]

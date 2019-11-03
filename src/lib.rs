@@ -10,12 +10,15 @@ extern crate lazy_static;
 use crate::err::CliError;
 use crate::git_lab::Project;
 use git2::{Commit, Repository};
+use std::collections::HashMap;
 use std::env;
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Config {
+    pub base_url: String,
     pub project_id: u64,
     pub api_token: ApiToken,
+    pub teams: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
@@ -73,10 +76,14 @@ mod tests {
     #[test]
     fn can_deserialize_config_yaml() {
         let yaml_str = r#"
+            base_url: "https://gitlab.com"
             project_id: 1234
             api_token:
                 from: EnvVar
                 name: API_TOKEN
+            teams:
+                A:
+                    - Alice
         "#;
         let cfg: Config = serde_yaml::from_str(yaml_str).unwrap();
         assert_eq!(cfg.project_id, 1234);
