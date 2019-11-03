@@ -33,6 +33,6 @@ fn main() -> Result<(), CliError<'static>> {
         &proj,
         repo,
         args[1].as_str(),
-        args.get(1).map_or_else(|| "HEAD", |s| s.as_str()),
+        args.get(2).map_or_else(|| "HEAD", |s| s.as_str()),
     )
 }

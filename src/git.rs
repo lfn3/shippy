@@ -5,7 +5,7 @@ use std::borrow::Borrow;
 
 pub fn associated_mr(c: &Commit) -> Option<u64> {
     lazy_static! {
-        static ref RE: Regex = Regex::new("See merge request !(\\d+)").unwrap();
+        static ref RE: Regex = Regex::new("See merge request .*!(\\d+)").unwrap();
     }
 
     c.message()
@@ -29,6 +29,7 @@ fn find_commit_oid(repo: &Repository, s: &str) -> Result<Oid, CliError<'static>>
     find_commit_oid_via_ref(repo, s)
         .or_else(|_| find_commit_oid_via_tag_name(repo, s))
         .or_else(|_| find_commit_oid_via_branch_name(repo, s))
+        .map_err(|_| CliError::String(format!("Could not find ref, branch or tag called: {}", s)))
 }
 
 fn find_commit_oid_via_branch_name(
@@ -253,7 +254,7 @@ mod tests {
         let repo = &tmp_repo();
         let initial_commit = commit_with_message(
             repo,
-            "Title 123\n A description \n See merge request !33958",
+            "Title 123\nA description\nSee merge request lfn3/shippy-test!33958",
         )
         .unwrap();
         let c = repo.find_commit(initial_commit).unwrap();
