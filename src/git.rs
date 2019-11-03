@@ -1,7 +1,7 @@
-use git2::{Repository, Oid, Commit, BranchType};
-use std::borrow::Borrow;
 use crate::err::CliError;
-use regex::{Regex, Captures};
+use git2::{BranchType, Commit, Oid, Repository};
+use regex::{Captures, Regex};
+use std::borrow::Borrow;
 
 pub fn associated_mr(c: &Commit) -> Option<u64> {
     lazy_static! {
@@ -9,12 +9,16 @@ pub fn associated_mr(c: &Commit) -> Option<u64> {
     }
 
     c.message()
-        .and_then(| msg | RE.captures(msg))
-        .and_then(| capt: Captures | capt.get(1))
-        .and_then( | m | m.as_str().parse::<u64>().ok())
+        .and_then(|msg| RE.captures(msg))
+        .and_then(|capt: Captures| capt.get(1))
+        .and_then(|m| m.as_str().parse::<u64>().ok())
 }
 
-pub fn commits_between_refs<'repo>(repo: &'repo Repository, to: &str, from: &str) -> Result<Vec<Commit<'repo>>, CliError<'static>> {
+pub fn commits_between_refs<'repo>(
+    repo: &'repo Repository,
+    to: &str,
+    from: &str,
+) -> Result<Vec<Commit<'repo>>, CliError<'static>> {
     let to_oid = find_commit_oid(repo, to)?;
     let from_oid = find_commit_oid(repo, from)?;
 
@@ -23,17 +27,23 @@ pub fn commits_between_refs<'repo>(repo: &'repo Repository, to: &str, from: &str
 
 fn find_commit_oid(repo: &Repository, s: &str) -> Result<Oid, CliError<'static>> {
     find_commit_oid_via_ref(repo, s)
-        .or_else(| _ | find_commit_oid_via_tag_name(repo, s))
-        .or_else(| _ | find_commit_oid_via_branch_name(repo, s))
+        .or_else(|_| find_commit_oid_via_tag_name(repo, s))
+        .or_else(|_| find_commit_oid_via_branch_name(repo, s))
 }
 
-fn find_commit_oid_via_branch_name(repo: &Repository, branch_name: &str) -> Result<Oid, CliError<'static>> {
+fn find_commit_oid_via_branch_name(
+    repo: &Repository,
+    branch_name: &str,
+) -> Result<Oid, CliError<'static>> {
     repo.find_branch(branch_name, BranchType::Local)
-        .and_then(| b | b.get().peel_to_commit().map(| c | c.id()))
-        .map_err(| e | CliError::Git("Could not find branch", e))
+        .and_then(|b| b.get().peel_to_commit().map(|c| c.id()))
+        .map_err(|e| CliError::Git("Could not find branch", e))
 }
 
-fn find_commit_oid_via_tag_name(repo: &Repository, tag_name: &str) -> Result<Oid, CliError<'static>> {
+fn find_commit_oid_via_tag_name(
+    repo: &Repository,
+    tag_name: &str,
+) -> Result<Oid, CliError<'static>> {
     find_commit_oid_via_ref(repo, format!("refs/tags/{}", tag_name).as_str())
 }
 
@@ -45,15 +55,27 @@ fn find_commit_oid_via_ref(repo: &Repository, git_ref: &str) -> Result<Oid, CliE
 }
 
 /// from is exclusive
-fn commits_between_oids(repo: &Repository, to: Oid, from: Oid) -> Result<Vec<Commit>, CliError<'static>> {
-    let mut revwalk = repo.revwalk().map_err(|e| CliError::Git("Could not create revwalk", e))?;
+fn commits_between_oids(
+    repo: &Repository,
+    to: Oid,
+    from: Oid,
+) -> Result<Vec<Commit>, CliError<'static>> {
+    let mut revwalk = repo
+        .revwalk()
+        .map_err(|e| CliError::Git("Could not create revwalk", e))?;
 
-    revwalk.push(to).map_err(|e| CliError::Git("Could not find commit", e))?;
-    revwalk.hide(from).map_err(|e| CliError::Git("Could not find commit", e))?;
+    revwalk
+        .push(to)
+        .map_err(|e| CliError::Git("Could not find commit", e))?;
+    revwalk
+        .hide(from)
+        .map_err(|e| CliError::Git("Could not find commit", e))?;
     let mut v = Vec::new();
     for rev in revwalk {
         let oid = rev.map_err(|e| CliError::Git("Error during revwalk", e))?;
-        let commit = repo.find_commit(oid).map_err(|e| CliError::Git("Could not find commit", e))?;
+        let commit = repo
+            .find_commit(oid)
+            .map_err(|e| CliError::Git("Could not find commit", e))?;
         v.push(commit)
     }
 
@@ -62,19 +84,26 @@ fn commits_between_oids(repo: &Repository, to: Oid, from: Oid) -> Result<Vec<Com
 
 pub fn find_greatest_tag(repo: &Repository, prefix: &str) -> Result<String, CliError<'static>> {
     if prefix.is_empty() {
-        return Result::Err(CliError::Str("Can't find greatest tag with no prefix, would find all tags."))
+        return Result::Err(CliError::Str(
+            "Can't find greatest tag with no prefix, would find all tags.",
+        ));
     }
     let mut search_string = prefix.to_owned();
     search_string.push('*');
-    let tags = repo.tag_names(Option::Some(search_string.borrow()))
+    let tags = repo
+        .tag_names(Option::Some(search_string.borrow()))
         .map_err(|e| CliError::Git("Could not read tags from repo", e))?;
 
-    let mut max : Option<u64> = Option::None;
+    let mut max: Option<u64> = Option::None;
     //TODO: what's the deal with None options here?
     for tag in tags.iter().filter(Option::is_some).map(Option::unwrap) {
-        let (_, suffix) : (&str, &str) = tag.split_at(prefix.len());
-        let parsed = suffix.parse::<u64>()
-            .map_err(|_| CliError::String(format!("Could not parse u64 from: {}, in tag: {}", suffix, tag)))?;
+        let (_, suffix): (&str, &str) = tag.split_at(prefix.len());
+        let parsed = suffix.parse::<u64>().map_err(|_| {
+            CliError::String(format!(
+                "Could not parse u64 from: {}, in tag: {}",
+                suffix, tag
+            ))
+        })?;
 
         if max.is_none() || max.unwrap() < parsed {
             max = Some(parsed);
@@ -93,24 +122,29 @@ pub fn find_greatest_tag(repo: &Repository, prefix: &str) -> Result<String, CliE
 
 #[cfg(test)]
 mod tests {
-    use crate::git_helpers::git_helpers::{tmp_repo, initial_commit, lightweight_tag, empty_commit, commit_with_message};
-    use crate::git::{find_greatest_tag, commits_between_oids, find_commit_oid, associated_mr};
-
+    use crate::git::{associated_mr, commits_between_oids, find_commit_oid, find_greatest_tag};
+    use crate::git_helpers::git_helpers::{
+        commit_with_message, empty_commit, initial_commit, lightweight_tag, tmp_repo,
+    };
 
     #[test]
     fn find_greatest_tag_returns_error_for_empty_repo() {
         let repo = tmp_repo();
 
-        assert_eq!(find_greatest_tag(&repo, "tag-").unwrap_err().to_string(),
-                   "Could not find any tags with prefix: tag-");
+        assert_eq!(
+            find_greatest_tag(&repo, "tag-").unwrap_err().to_string(),
+            "Could not find any tags with prefix: tag-"
+        );
     }
 
     #[test]
     fn find_greatest_tag_returns_error_for_empty_prefix() {
         let repo = tmp_repo();
 
-        assert_eq!(find_greatest_tag(&repo, "").unwrap_err().to_string(),
-                   "Can't find greatest tag with no prefix, would find all tags.");
+        assert_eq!(
+            find_greatest_tag(&repo, "").unwrap_err().to_string(),
+            "Can't find greatest tag with no prefix, would find all tags."
+        );
     }
 
     #[test]
@@ -130,8 +164,10 @@ mod tests {
         let initial_commit = initial_commit(&repo).unwrap();
         lightweight_tag(&repo, initial_commit, "tag-abc");
 
-        assert_eq!(find_greatest_tag(&repo, "tag-").unwrap_err().to_string(),
-                   "Could not parse u64 from: abc, in tag: tag-abc");
+        assert_eq!(
+            find_greatest_tag(&repo, "tag-").unwrap_err().to_string(),
+            "Could not parse u64 from: abc, in tag: tag-abc"
+        );
     }
 
     #[test]
@@ -215,7 +251,11 @@ mod tests {
     #[test]
     fn can_find_associated_mr() {
         let repo = &tmp_repo();
-        let initial_commit = commit_with_message(repo, "Title 123\n A description \n See merge request !33958").unwrap();
+        let initial_commit = commit_with_message(
+            repo,
+            "Title 123\n A description \n See merge request !33958",
+        )
+        .unwrap();
         let c = repo.find_commit(initial_commit).unwrap();
 
         let i = associated_mr(&c).unwrap();

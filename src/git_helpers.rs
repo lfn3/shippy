@@ -1,12 +1,12 @@
 #[cfg(test)]
 pub mod git_helpers {
-    use git2::{Repository, Oid, Error, Commit, ReferenceType, Tree};
-    use std::path::PathBuf;
+    use git2::{Commit, Error, Oid, ReferenceType, Repository, Tree};
+    use rand::Rng;
     use std::env::temp_dir;
     use std::fs::create_dir;
-    use rand::Rng;
-    use std::ops::Add;
     use std::iter::FromIterator;
+    use std::ops::Add;
+    use std::path::PathBuf;
 
     pub fn tmp_dir() -> PathBuf {
         let mut rng = rand::thread_rng();
@@ -31,8 +31,8 @@ pub mod git_helpers {
         let tree = empty_tree(repo)?;
 
         match peel_ref(repo, "HEAD") {
-            Ok(p) => { repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[&p]) },
-            Err(_) => { repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[]) },
+            Ok(p) => repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[&p]),
+            Err(_) => repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[]),
         }
     }
 
@@ -41,7 +41,7 @@ pub mod git_helpers {
         let mut reference = repo.find_reference(name)?;
         while found.is_none() {
             match reference.kind().unwrap() {
-                ReferenceType::Direct => { found = Option::Some(reference.peel_to_commit()) }
+                ReferenceType::Direct => found = Option::Some(reference.peel_to_commit()),
                 ReferenceType::Symbolic => {
                     let next_name = reference.symbolic_target().unwrap();
                     reference = repo.find_reference(next_name)?
@@ -58,7 +58,14 @@ pub mod git_helpers {
 
         let parent = peel_ref(repo, "HEAD")?;
 
-        repo.commit(Some("HEAD"), &sig, &sig, "An empty commit", &tree, &[&parent])
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "An empty commit",
+            &tree,
+            &[&parent],
+        )
     }
 
     pub fn empty_tree(repo: &Repository) -> Result<Tree, Error> {
@@ -80,7 +87,6 @@ pub mod git_helpers {
         let commit_obj = repo.find_object(commit_id, Option::None)?;
         repo.tag_lightweight(name, &commit_obj, false)
     }
-
 
     ///This is all more me figuring out how libgit and the rust bindings work than actual tests.
     #[test]
@@ -114,7 +120,14 @@ pub mod git_helpers {
 
         let commit = repo.find_commit(oid).unwrap();
 
-        repo.tag("the-tag", &commit.into_object(), &repo.signature().unwrap(), "This is a tag", false).unwrap();
+        repo.tag(
+            "the-tag",
+            &commit.into_object(),
+            &repo.signature().unwrap(),
+            "This is a tag",
+            false,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -125,7 +138,15 @@ pub mod git_helpers {
 
         let commit = repo.find_commit(commit_id).unwrap();
         let tag_name = "the-tag";
-        let tag_id = repo.tag(tag_name, &commit.into_object(), &repo.signature().unwrap(), "This is a tag", false).unwrap();
+        let tag_id = repo
+            .tag(
+                tag_name,
+                &commit.into_object(),
+                &repo.signature().unwrap(),
+                "This is a tag",
+                false,
+            )
+            .unwrap();
 
         let tags = repo.tag_names(Option::Some("the-*")).unwrap();
 
@@ -165,7 +186,12 @@ pub mod git_helpers {
         let tag_tree = commit.tree().unwrap();
         let commit_tree = repo.find_commit(commit_id3).unwrap().tree().unwrap();
 
-        repo.diff_tree_to_tree(Option::Some(&tag_tree), Option::Some(&commit_tree), Option::None).unwrap();
+        repo.diff_tree_to_tree(
+            Option::Some(&tag_tree),
+            Option::Some(&commit_tree),
+            Option::None,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -187,7 +213,7 @@ pub mod git_helpers {
 
         let v = Vec::from_iter(revwalk);
         // looks like we don't see the pushed in commit
-//    assert_eq!(v[2].as_ref().unwrap(), &commit_id1);
+        //    assert_eq!(v[2].as_ref().unwrap(), &commit_id1);
         assert_eq!(v[1].as_ref().unwrap(), &commit_id2);
         assert_eq!(v[0].as_ref().unwrap(), &commit_id3);
     }
