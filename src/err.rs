@@ -7,6 +7,8 @@ pub enum CliError<'this> {
     String(String),
     Io(&'this str, io::Error),
     Git(&'this str, git2::Error),
+    Http(String, reqwest::Error),
+    Yaml(&'this str, serde_yaml::Error),
 }
 
 impl fmt::Display for CliError<'_> {
@@ -20,6 +22,14 @@ impl fmt::Display for CliError<'_> {
             CliError::Git(msg, git_err) => {
                 f.write_str(msg).and(f.write_str(":\n")).and(git_err.fmt(f))
             }
+            CliError::Http(msg, http_err) => f
+                .write_str(msg)
+                .and(f.write_str(":\n"))
+                .and(http_err.fmt(f)),
+            CliError::Yaml(msg, yaml_err) => f
+                .write_str(msg)
+                .and(f.write_str(":\n"))
+                .and(yaml_err.fmt(f)),
         }
     }
 }

@@ -1,19 +1,21 @@
 pub mod err;
 mod git;
 mod git_helpers;
-mod git_lab;
+pub mod git_lab;
 use serde::Deserialize;
 
 #[macro_use]
 extern crate lazy_static;
 
 use crate::err::CliError;
+use crate::git_lab::Project;
 use git2::{Commit, Repository};
+use std::env;
 
 #[derive(Debug, PartialEq, Deserialize)]
-struct Config {
-    project_id: u64,
-    api_token: ApiToken,
+pub struct Config {
+    pub project_id: u64,
+    pub api_token: ApiToken,
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
@@ -22,7 +24,21 @@ pub enum ApiToken {
     EnvVar { name: String },
 }
 
+impl ApiToken {
+    pub fn get(&self) -> Result<String, CliError<'static>> {
+        match self {
+            ApiToken::EnvVar { name } => env::var(name).map_err(|_err| {
+                CliError::String(format!(
+                    "Could not find api token in environment variable {}",
+                    name
+                ))
+            }),
+        }
+    }
+}
+
 pub fn print_release_notes(
+    proj: &Project,
     repo: &Repository,
     tag_prefix: &str,
     up_to: &str,
@@ -40,6 +56,11 @@ pub fn print_release_notes(
         .map(|o| o.unwrap())
         .collect();
     println!(", pointing to {} merge requests:", mrs.len());
+
+    for mr_id in mrs {
+        let mr = proj.get_mr(mr_id)?;
+        println!("{}", mr)
+    }
 
     Ok(())
 }
