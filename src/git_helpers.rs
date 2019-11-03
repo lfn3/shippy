@@ -26,6 +26,16 @@ pub mod git_helpers {
         repo.commit(Some("HEAD"), &sig, &sig, "Initial Commit", &tree, &[])
     }
 
+    pub fn commit_with_message(repo: &Repository, msg: &str) -> Result<Oid, Error> {
+        let sig = repo.signature()?;
+        let tree = empty_tree(repo)?;
+
+        match peel_ref(repo, "HEAD") {
+            Ok(p) => { repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[&p]) },
+            Err(_) => { repo.commit(Some("HEAD"), &sig, &sig, msg, &tree, &[]) },
+        }
+    }
+
     pub fn peel_ref<'repo>(repo: &'repo Repository, name: &str) -> Result<Commit<'repo>, Error> {
         let mut found: Option<Result<Commit, Error>> = Option::None;
         let mut reference = repo.find_reference(name)?;

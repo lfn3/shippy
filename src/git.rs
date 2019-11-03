@@ -1,8 +1,20 @@
 use git2::{Repository, Oid, Commit, BranchType};
 use std::borrow::Borrow;
 use crate::err::CliError;
+use regex::{Regex, Captures};
 
-fn commits_between_refs<'repo>(repo: &'repo Repository, to: &str, from: &str) -> Result<Vec<Commit<'repo>>, CliError<'static>> {
+pub fn associated_mr(c: &Commit) -> Option<u64> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new("See merge request !(\\d+)").unwrap();
+    }
+
+    c.message()
+        .and_then(| msg | RE.captures(msg))
+        .and_then(| capt: Captures | capt.get(1))
+        .and_then( | m | m.as_str().parse::<u64>().ok())
+}
+
+pub fn commits_between_refs<'repo>(repo: &'repo Repository, to: &str, from: &str) -> Result<Vec<Commit<'repo>>, CliError<'static>> {
     let to_oid = find_commit_oid(repo, to)?;
     let from_oid = find_commit_oid(repo, from)?;
 
@@ -48,7 +60,7 @@ fn commits_between_oids(repo: &Repository, to: Oid, from: Oid) -> Result<Vec<Com
     Ok(v)
 }
 
-fn find_greatest_tag(repo: &Repository, prefix: &str) -> Result<String, CliError<'static>> {
+pub fn find_greatest_tag(repo: &Repository, prefix: &str) -> Result<String, CliError<'static>> {
     if prefix.is_empty() {
         return Result::Err(CliError::Str("Can't find greatest tag with no prefix, would find all tags."))
     }
@@ -81,8 +93,8 @@ fn find_greatest_tag(repo: &Repository, prefix: &str) -> Result<String, CliError
 
 #[cfg(test)]
 mod tests {
-    use crate::git_helpers::git_helpers::{tmp_repo, initial_commit, lightweight_tag, empty_commit};
-    use crate::git::{find_greatest_tag, commits_between_oids, find_commit_oid};
+    use crate::git_helpers::git_helpers::{tmp_repo, initial_commit, lightweight_tag, empty_commit, commit_with_message};
+    use crate::git::{find_greatest_tag, commits_between_oids, find_commit_oid, associated_mr};
 
 
     #[test]
@@ -198,5 +210,15 @@ mod tests {
         repo.branch("a-branch", &c, false);
 
         assert_eq!(initial_commit, find_commit_oid(repo, "a-branch").unwrap());
+    }
+
+    #[test]
+    fn can_find_associated_mr() {
+        let repo = &tmp_repo();
+        let initial_commit = commit_with_message(repo, "Title 123\n A description \n See merge request !33958").unwrap();
+        let c = repo.find_commit(initial_commit).unwrap();
+
+        let i = associated_mr(&c).unwrap();
+        assert_eq!(i, 33958)
     }
 }
