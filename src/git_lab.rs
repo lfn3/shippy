@@ -45,6 +45,11 @@ impl Project {
         }
     }
 
+    //TODO: use the list endpoint instead
+    pub fn get_mrs(&self, mr_ids: Vec<u64>) -> Result<Vec<MergeRequest>, CliError<'static>> {
+        mr_ids.iter().map(|id| self.get_mr(*id)).collect()
+    }
+
     pub fn get_mr(&self, mr_id: u64) -> Result<MergeRequest, CliError<'static>> {
         let url = format!(
             "{base_url}/api/v4/projects/{project_id}/merge_requests/{mr_id}",
@@ -81,8 +86,9 @@ impl Project {
 
 #[cfg(all(test, feature = "gitlab_api_tests"))]
 mod gitlab_api_tests {
-    use crate::git_lab::Project;
+    use crate::git_lab::{Project, MergeRequest};
     use std::env;
+    use crate::err::CliError;
 
     lazy_static! {
         static ref PROJECT: Project = Project::new(
@@ -92,9 +98,19 @@ mod gitlab_api_tests {
         );
     }
 
+    pub fn naive_get_mrs(project : &Project, mr_ids: Vec<u64>) -> Result<Vec<MergeRequest>, CliError<'static>> {
+        mr_ids.iter().map(|id| project.get_mr(*id)).collect()
+    }
+
     #[test]
     fn can_get_mr() {
         let mr = PROJECT.get_mr(1).unwrap();
         assert_eq!(mr.author.username, "lfn3")
+    }
+
+    #[test]
+    fn can_get_mrs() {
+        let mr_ids = vec!(1, 2);
+        assert_eq!(PROJECT.get_mrs(mr_ids.clone()).unwrap(), naive_get_mrs(&PROJECT, mr_ids).unwrap())
     }
 }

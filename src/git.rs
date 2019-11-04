@@ -250,6 +250,27 @@ mod tests {
     }
 
     #[test]
+    #[ignore] //TODO: implement functionality
+    fn can_find_commit_from_relative_ref() {
+        let repo = &tmp_repo();
+        let initial_commit = initial_commit(repo).unwrap();
+        let second_commit = empty_commit(repo).unwrap();
+
+        assert_eq!(initial_commit, find_commit_oid(repo, "HEAD^").unwrap());
+    }
+
+    #[test]
+    #[ignore] //TODO: implement functionality
+    fn can_find_commit_from_full_sha() {
+        let repo = &tmp_repo();
+        let initial_commit = initial_commit(repo).unwrap();
+        let c = repo.find_commit(initial_commit).unwrap();
+        let sha = c.id().to_string();
+
+        assert_eq!(initial_commit, find_commit_oid(repo, sha.as_str()).unwrap());
+    }
+
+    #[test]
     fn can_find_associated_mr() {
         let repo = &tmp_repo();
         let initial_commit = commit_with_message(
