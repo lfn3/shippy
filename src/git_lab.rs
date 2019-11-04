@@ -17,7 +17,7 @@ pub struct MergeRequest {
     iid: u64,
     title: String,
     description: String,
-    author: User,
+    pub author: User,
 }
 
 impl Display for MergeRequest {
@@ -32,7 +32,7 @@ impl Display for MergeRequest {
 pub struct User {
     id: u64,
     name: String,
-    username: String,
+    pub username: String,
 }
 
 impl Project {

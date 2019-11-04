@@ -45,6 +45,7 @@ pub fn print_release_notes(
     repo: &Repository,
     tag_prefix: &str,
     up_to: &str,
+    for_authors: Option<&Vec<String>>
 ) -> Result<(), CliError<'static>> {
     let max_tag = git::find_greatest_tag(repo, tag_prefix)?;
     println!("Searching between {} and {}", max_tag, up_to);
@@ -62,7 +63,14 @@ pub fn print_release_notes(
 
     let mrs = proj.get_mrs(mr_ids)?;
 
-    for mr in mrs {
+    let filtered_mrs = if let Some(authors) = for_authors {
+        println!("Filtering to {:?}", authors);
+        mrs.into_iter().filter(|mr| authors.contains(&mr.author.username.to_string())).collect()
+    } else {
+        mrs
+    };
+
+    for mr in filtered_mrs {
         println!("{}", mr)
     }
 

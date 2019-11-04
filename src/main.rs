@@ -35,14 +35,17 @@ fn main() -> Result<(), CliError<'static>> {
     let cfg: Config = serde_yaml::from_reader(cfg_file)
         .map_err(|e| CliError::Yaml("Could not deserialize config file", e))?;
 
-    let proj = Project::new(cfg.base_url, cfg.project_id, cfg.api_token.get()?);
+    let proj = Project::new(cfg.base_url.clone(), cfg.project_id, cfg.api_token.get()?);
 
     let repo = &Repository::open(cwd).map_err(|e| CliError::Git("Could not open repository", e))?;
+
+    let authors = opts.team.and_then(|t: String| cfg.teams.get(t.as_str()));
 
     print_release_notes(
         &proj,
         repo,
         opts.tag_prefix.as_str(),
         opts.up_to.as_str(),
+        authors
     )
 }
