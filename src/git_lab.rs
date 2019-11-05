@@ -1,9 +1,11 @@
 use crate::err::CliError;
-use reqwest::Client;
+use reqwest::{Client, Response};
 use serde::export::fmt::Error;
 use serde::export::Formatter;
 use serde::Deserialize;
 use std::fmt::Display;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 pub struct Project {
     base_url: String,
@@ -45,9 +47,62 @@ impl Project {
         }
     }
 
-    //TODO: use the list endpoint instead
+    fn get(&self, url : String) -> Result<Response, CliError<'static>> {
+        let req = self.client
+            .get(url.as_str())
+            .header("Private-Token", self.api_token.clone())
+            .build()
+            .map_err(|e| {
+                let message = format!(
+                    "Could not build request for {}",
+                    url
+                );
+                CliError::Http(message, e)
+            })?;
+
+        self.client.execute(req).map_err(|e| {
+            CliError::Http(format!("Error getting {}", url), e)
+        })
+    }
+
     pub fn get_mrs(&self, mr_ids: Vec<u64>) -> Result<Vec<MergeRequest>, CliError<'static>> {
-        mr_ids.iter().map(|id| self.get_mr(*id)).collect()
+        let mut left_to_find : HashSet<u64> = HashSet::from_iter(mr_ids.iter().cloned());
+        let mut result : Vec<MergeRequest> = Vec::new();
+        let mut page = 0;
+
+        while !left_to_find.is_empty() {
+            let url = format!(
+                "{base_url}/api/v4/projects/{project_id}/merge_requests?page={page}",
+                base_url = self.base_url,
+                project_id = self.project_id,
+                page = page
+            );
+
+            let mut response = self.get(url.clone())?;
+
+            let mrs = response.json::<Vec<MergeRequest>>().map_err(|e| {
+                let message = format!(
+                    "Could not deserialize json from {}:\n {:#?}",
+                    url, response
+                );
+                CliError::Http(message, e)
+            })?;
+
+            if mrs.is_empty() {
+                let msg = format!("Could not find mrs with ids {:#?}", left_to_find);
+                return Err(CliError::String(msg))
+            }
+
+            for mr in mrs {
+                if left_to_find.remove(&mr.iid) {
+                    result.push(mr)
+                }
+            }
+
+            page = page + 1
+        }
+
+        Ok(result)
     }
 
     pub fn get_mr(&self, mr_id: u64) -> Result<MergeRequest, CliError<'static>> {
@@ -57,27 +112,13 @@ impl Project {
             project_id = self.project_id,
             mr_id = mr_id
         );
-        let req = self
-            .client
-            .get(url.as_str())
-            .header("Private-Token", self.api_token.clone())
-            .build()
-            .map_err(|e| {
-                let message = format!(
-                    "Could not build request for merge request with id {}",
-                    mr_id
-                );
-                CliError::Http(message, e)
-            })?;
 
-        let mut response = self.client.execute(req).map_err(|e| {
-            CliError::Http(format!("Error getting merge request with id {}", mr_id), e)
-        })?;
+        let mut response = self.get(url.clone())?;
 
         response.json::<MergeRequest>().map_err(|e| {
             let message = format!(
-                "Could not deserialize json for merge request with id {} from:\n {:#?}",
-                mr_id, response
+                "Could not deserialize json from {}:\n {:#?}",
+                url, response
             );
             CliError::Http(message, e)
         })
@@ -110,7 +151,7 @@ mod gitlab_api_tests {
 
     #[test]
     fn can_get_mrs() {
-        let mr_ids = vec!(1, 2);
+        let mr_ids = vec!(2, 1);
         assert_eq!(PROJECT.get_mrs(mr_ids.clone()).unwrap(), naive_get_mrs(&PROJECT, mr_ids).unwrap())
     }
 }
