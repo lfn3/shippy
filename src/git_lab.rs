@@ -66,43 +66,30 @@ impl Project {
     }
 
     pub fn get_mrs(&self, mr_ids: Vec<u64>) -> Result<Vec<MergeRequest>, CliError<'static>> {
-        let mut left_to_find : HashSet<u64> = HashSet::from_iter(mr_ids.iter().cloned());
-        let mut result : Vec<MergeRequest> = Vec::new();
-        let mut page = 0;
-
-        while !left_to_find.is_empty() {
-            let url = format!(
-                "{base_url}/api/v4/projects/{project_id}/merge_requests?page={page}",
-                base_url = self.base_url,
-                project_id = self.project_id,
-                page = page
-            );
-
-            let mut response = self.get(url.clone())?;
-
-            let mrs = response.json::<Vec<MergeRequest>>().map_err(|e| {
-                let message = format!(
-                    "Could not deserialize json from {}:\n {:#?}",
-                    url, response
-                );
-                CliError::Http(message, e)
-            })?;
-
-            if mrs.is_empty() {
-                let msg = format!("Could not find mrs with ids {:#?}", left_to_find);
-                return Err(CliError::String(msg))
-            }
-
-            for mr in mrs {
-                if left_to_find.remove(&mr.iid) {
-                    result.push(mr)
-                }
-            }
-
-            page = page + 1
+        if mr_ids.is_empty() {
+            return Ok(Vec::new())
         }
 
-        Ok(result)
+        let mr_strs : Vec<String> = mr_ids.iter()
+            .map(|id| format!("iids[]={}", id))
+            .collect();
+
+        let mut url = format!(
+            "{base_url}/api/v4/projects/{project_id}/merge_requests?{mrs}",
+            base_url = self.base_url,
+            project_id = self.project_id,
+            mrs = mr_strs.join("&")
+        );
+
+        let mut response = self.get(url.clone())?;
+
+        response.json::<Vec<MergeRequest>>().map_err(|e| {
+            let message = format!(
+                "Could not deserialize json from {}:\n {:#?}",
+                url, response
+            );
+            CliError::Http(message, e)
+        })
     }
 
     pub fn get_mr(&self, mr_id: u64) -> Result<MergeRequest, CliError<'static>> {
@@ -153,5 +140,13 @@ mod gitlab_api_tests {
     fn can_get_mrs() {
         let mr_ids = vec!(2, 1);
         assert_eq!(PROJECT.get_mrs(mr_ids.clone()).unwrap(), naive_get_mrs(&PROJECT, mr_ids).unwrap())
+    }
+
+    #[test]
+    fn empty_mrs() {
+        let mr_ids = vec!();
+        let actual = PROJECT.get_mrs(mr_ids.clone()).unwrap();
+        assert_eq!(actual.len(), 0);
+        assert_eq!(actual, naive_get_mrs(&PROJECT, mr_ids).unwrap())
     }
 }
